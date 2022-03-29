@@ -1,0 +1,272 @@
+name: 6.Todo Build (auto versioning)
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**/**.md'
+      - './img/**'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+env:
+  PROJECT_PATH_TODO_UI: './src/todo.ui/todo.ui.csproj'
+  PROJECT_PATH_TODO_REPO: './src/todo.repo/todo.repo.csproj'
+  PROJECT_PATH_TODO_INFRA_BICEP: './src/todo.infra/azuredeploy.bicep'
+  PROJECT_PATH_TODO_INFRA_JSON: './src/todo.infra/azuredeploy.json'
+  PROJECT_OUT_PATH_TODO_UI: './out/todo.ui'
+  PROJECT_OUT_PATH_TODO_REPO: './out/todo.repo'
+  PROJECT_DIR_PATH_TODO_INFRA: './src/todo.infra/'
+  RESOURCE_GROUP: tododevops-dev
+
+  PROJECT_PATH_TODO_INFRA_PARAM: './src/todo.infra/azuredeploy.parameters.dev.json'
+
+jobs:
+
+  build_repo:
+  
+    needs: create_draft_release
+    runs-on: ubuntu-latest
+
+    steps:
+    
+    - uses: actions/checkout@v2
+
+      # Build projects
+    
+    - name: build and publish todo repo
+      run: |
+        dotnet restore ${{env.PROJECT_PATH_TODO_REPO}}
+        dotnet build ${{env.PROJECT_PATH_TODO_REPO}} --configuration Release
+        dotnet publish ${{env.PROJECT_PATH_TODO_REPO}} -c Release -o '${{ env.PROJECT_OUT_PATH_TODO_REPO }}' 
+
+    # upload artifacts
+    - name: upload repo artifacts
+      uses: actions/upload-artifact@v2
+      with:
+          name: package.repo
+          path: '${{ env.PROJECT_OUT_PATH_TODO_REPO }}'
+
+  build_ui:
+
+    needs: create_draft_release
+    runs-on: ubuntu-latest
+
+    steps:
+    
+    - uses: actions/checkout@v2
+
+    - name: build and publish todo ui
+      run: |
+        dotnet restore ${{env.PROJECT_PATH_TODO_UI}}
+        dotnet build ${{env.PROJECT_PATH_TODO_UI}} --configuration Release
+        dotnet publish ${{env.PROJECT_PATH_TODO_UI}} -c Release -o '${{ env.PROJECT_OUT_PATH_TODO_UI }}' 
+
+    # upload artifacts
+    - name: upload ui artifacts
+      uses: actions/upload-artifact@v2
+      with:
+          name: package.ui
+          path: '${{ env.PROJECT_OUT_PATH_TODO_UI }}'
+
+  deploy_infra_dev:
+  
+    needs: create_draft_release
+    runs-on: ubuntu-latest
+
+    outputs:
+      webapp_name_repo: ${{env.webapp_name_repo}}
+      webapp_name_ui: ${{env.webapp_name_ui}}
+    
+    steps:
+    
+    - uses: actions/checkout@v2
+
+    - name: 'build bicep 💪'
+      run: |
+        az bicep build --file ${{env.PROJECT_PATH_TODO_INFRA_BICEP}}
+    
+    - name: login to azure from cli
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: create/update infrastructure from arm template
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          outputs=$(az deployment group create -g ${{env.RESOURCE_GROUP}} --template-file ${{env.PROJECT_PATH_TODO_INFRA_JSON}} --parameters ${{env.PROJECT_PATH_TODO_INFRA_PARAM}})
+          webapp_name_repo_out=$(echo $outputs | jq -r .properties.outputs.webapp_name_repo.value)
+          webapp_name_ui_out=$(echo $outputs | jq -r .properties.outputs.webapp_name_ui.value)
+          echo webapp_name_repo=$webapp_name_repo_out >> $GITHUB_ENV
+          echo webapp_name_ui=$webapp_name_ui_out >> $GITHUB_ENV
+    
+    - name: logout
+      run: |
+         az logout
+
+  deploy_repo_dev:
+  
+    needs: [deploy_infra_dev, build_repo]
+
+    runs-on: ubuntu-latest
+    
+    steps:
+    
+    - uses: actions/download-artifact@v2
+      with:
+        name: package.repo
+        path: ./release
+
+    - name: login to azure from cli
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 'deploy todo repo'
+      uses: azure/webapps-deploy@v2
+      with: 
+        app-name: ${{ needs.deploy_infra_dev.outputs.webapp_name_repo }}
+        package: ./release
+
+    - name: logout
+      run: |
+        az logout
+
+  deploy_ui_dev:
+  
+    needs: [deploy_infra_dev, build_ui]
+
+    runs-on: ubuntu-latest
+    
+    steps:
+    
+    - uses: actions/download-artifact@v2
+      with:
+        name: package.ui
+        path: ./release/
+
+    - name: login to azure from cli
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 'deploy todo ui'
+      uses: azure/webapps-deploy@v2
+      with: 
+        app-name: ${{ needs.deploy_infra_dev.outputs.webapp_name_ui }}
+        package: ./release/
+
+    - name: logout
+      run: |
+        az logout
+
+  create_draft_release:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout Code
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: install gitversion
+      uses: gittools/actions/gitversion/setup@v0.9.7
+      with:
+        versionSpec: '5.x'
+
+    - name: get next version
+      id: nextversion
+      uses: gittools/actions/gitversion/execute@v0.9.7
+      with:
+          useConfigFile: true
+          additionalArguments: /updateAssemblyInfo
+
+    - name: check-in AssemblyInfo.cs
+      shell: bash
+      run: |
+        git config --global user.email "build@mcmlab.com"
+        git config --global user.name "GitHub Action"    
+        git add .
+        git commit -m "update version to ${{ steps.nextversion.outputs.semVer }}"
+        git push
+
+    - name: 'Calculated Release Version -> ${{ steps.nextversion.outputs.semVer }}'
+      shell: bash
+      run: |
+        echo Calculated Release Version : ${{ steps.nextversion.outputs.semVer }} 
+    
+    - name: create draft release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+          GITHUB_TOKEN: ${{ github.token }}
+      with:
+          tag_name: v${{ steps.nextversion.outputs.semVer }}
+          release_name: v${{ steps.nextversion.outputs.semVer }}
+          draft: true
+          prerelease: false
+
+    - name: store release and version info to a file
+      run: |
+       mkdir -p datashare_version
+       echo '${{ steps.nextversion.outputs.semVer }}' > ./datashare_version/release_version.txt
+       echo '${{ steps.create_release.outputs.upload_url }}' > ./datashare_version/release_url.txt
+       echo '${{ steps.create_release.outputs.id }}' > ./datashare_version/release_id.txt
+
+    - name: cache release and version info file
+      uses: actions/cache@v2
+      env:
+        cache-name: version_cache
+      with:
+        path: ./datashare_version/
+        key:  version_cache_key_${{ github.run_number }}_${{ github.run_id }}
+
+  finalize_release:
+    needs: [ deploy_ui_dev, deploy_repo_dev ]
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: restore release and version info cache
+      uses: actions/cache@v2
+      env:
+        cache-name: version_cache
+      with:
+        path: ./datashare_version/
+        key:  version_cache_key_${{ github.run_number }}_${{ github.run_id }}
+
+    - name: extract release and version info from cache
+      shell: bash
+      run: |
+          echo release_version=`cat ./datashare_version/release_version.txt` >> $GITHUB_ENV
+          echo release_url=`cat ./datashare_version/release_url.txt` >> $GITHUB_ENV
+          echo release_id=`cat ./datashare_version/release_id.txt` >> $GITHUB_ENV
+
+    - uses: actions/download-artifact@v2
+      with:
+        path: ./release/
+    
+    - name: zip deployed binaries
+      run: 'tar cvzf todo.${{env.release_version}}.tar.gz ./release/'
+
+    - name: upload zipped binaries to release page
+      uses: actions/upload-release-asset@v1
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+          upload_url: ${{ env.release_url }}
+          asset_path: "todo.${{env.release_version}}.tar.gz"
+          asset_name: "todo_v${{env.release_version}}.tar.gz"
+          asset_content_type: application/zip
+
+    - name: publish release 
+      uses: eregon/publish-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        release_id: ${{ env.release_id }}

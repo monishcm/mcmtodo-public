@@ -1,0 +1,46 @@
+name: Secure code scan
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**/*.md'
+      - './img/**'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+env:
+  PROJECT_PATH_TODO_UI: './src/todo.ui/todo.ui.csproj'
+  PROJECT_PATH_TODO_REPO: './src/todo.repo/todo.repo.csproj'
+
+jobs:
+
+  build:
+  
+    runs-on: ubuntu-latest
+
+    steps:
+    
+    - uses: actions/checkout@v2
+
+      # Build projects
+
+    - name: Set up projects
+      uses: security-code-scan/security-code-scan-add-action@v1.1
+    
+    - name: build and publish todo repo
+      run: |
+        dotnet restore ${{env.PROJECT_PATH_TODO_REPO}}
+        dotnet build ${{env.PROJECT_PATH_TODO_REPO}} --configuration Release
+
+#    - name: build and publish todo ui
+#      run: |
+#        dotnet restore ${{env.PROJECT_PATH_TODO_UI}}
+#        dotnet build ${{env.PROJECT_PATH_TODO_UI}} --configuration Release
+
+    - name: Convert sarif for uploading to GitHub
+      uses: security-code-scan/security-code-scan-results-action@v1.3
+
+    - name: Upload sarif	
+      uses: github/codeql-action/upload-sarif@v1

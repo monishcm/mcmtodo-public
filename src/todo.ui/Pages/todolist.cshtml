@@ -1,0 +1,33 @@
+﻿@page
+@using Todo.UI.Data
+@using Todo.UI.Models
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@inject TodoService todoService
+
+@model Todo.UI.TodolistModel
+@{
+    var userId = "monishcm@outlook.com";
+
+    var todos = await todoService.GetAll(userId);
+    <ul>
+        @foreach (var todo in todos)
+        {
+            <ul>
+                <input type="checkbox" value="@todo.Completed" />
+                <span>@todo.Title</span>
+                <br />
+            </ul>
+        }
+    </ul>
+
+    <form method="post">
+
+        <input placeholder="Something todo" asp-for="Todo.Title" />
+        <input type="submit" value="Add todo" />
+        <input type="hidden" value="monishcm@outlook.com" asp-for="Todo.UserId" />
+        <input type="hidden" value="Notes" asp-for="Todo.Notes" />
+
+    </form>
+
+}

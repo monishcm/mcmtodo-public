@@ -1,0 +1,39 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "databaseAccountName": {
+        "value": "mcm-todo-dev"
+      },
+      "dbName": {
+        "value": "todolist"
+      },
+      "containerName": {
+        "value": "todoitems"
+      },
+      "databaseAccountTier": {
+        "value": "Standard"
+      },
+      "partitionKey": {
+        "value": "/userId"
+      },
+      "appSvcPlanName": {
+        "value": "mcmtodo-dev"
+      },
+      "svcPlanSize": {
+        "value": "B1"
+      },
+      "svcPlanSku": {
+        "value": "Basic"
+      },
+      "webAppName_repo": {
+        "value": "mcmtodo-repo-dev"
+      },
+      "webAppName_ui": {
+        "value": "mcmtodo-ui-dev"
+      },
+      "appInsights_name": {
+        "value": "mcmtodo-dev"
+      }
+    }
+  }

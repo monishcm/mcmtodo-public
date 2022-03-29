@@ -1,0 +1,70 @@
+name: Todo Build - Sonarcloud
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**/**.md'
+      - './img/**'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+env:
+  PROJECT_PATH_TODO_UI: './src/todo.ui/todo.ui.csproj'
+  PROJECT_PATH_TODO_REPO: './src/todo.repo/todo.repo.csproj'
+  PROJECT_PATH_TODO_INFRA_BICEP: './src/todo.infra/azuredeploy.bicep'
+  PROJECT_PATH_TODO_INFRA_JSON: './src/todo.infra/azuredeploy.json'
+  PROJECT_OUT_PATH_TODO_UI: './out/todo.ui'
+  PROJECT_OUT_PATH_TODO_REPO: './out/todo.repo'
+  PROJECT_DIR_PATH_TODO_INFRA: './src/todo.infra/'
+  RESOURCE_GROUP: tododevops-dev
+
+  PROJECT_PATH_TODO_INFRA_PARAM: './src/todo.infra/azuredeploy.parameters.dev.json'
+  SONAR_HOST_URL: 'https://sonarcloud.io/'
+
+jobs:
+
+  code_analysis_sonar:
+
+    runs-on: windows-latest
+    steps:
+      - name: Set up JDK 11
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.11
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          
+      - name: Cache SonarQube packages
+        uses: actions/cache@v1
+        with:
+          path: ~\sonar\cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Cache SonarQube scanner
+        id: cache-sonar-scanner
+        uses: actions/cache@v1
+        with:
+          path: .\.sonar\scanner
+          key: ${{ runner.os }}-sonar-scanner
+          restore-keys: ${{ runner.os }}-sonar-scanner
+
+      - name: Install SonarQube scanner
+        if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
+        shell: powershell
+        run: |
+          New-Item -Path .\.sonar\scanner -ItemType Directory
+          dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
+
+      - name: Build and analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+        shell: powershell
+        run: |
+          .\.sonar\scanner\dotnet-sonarscanner begin /o:mcmtodo /k:"mcmtodo-project" /d:sonar.login="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="${{ env.SONAR_HOST_URL }}"
+          dotnet build ${{env.PROJECT_PATH_TODO_REPO}}
+          dotnet build ${{env.PROJECT_PATH_TODO_UI}}
+          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.login="${{ secrets.SONAR_TOKEN }}" 

@@ -1,0 +1,17 @@
+name: zap-site-security-scan
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:     
+    - name: OWASP ZAP Baseline Scan
+      uses: zaproxy/action-baseline@v0.4.0
+      with:
+        target: "https://mcmtodo-ui-dev.azurewebsites.net/"
+    
+    - name: OWASP ZAP Baseline Scan
+      uses: zaproxy/action-baseline@v0.3.0
+      with:
+        target: "https://mcmtodo-rep-dev.azurewebsites.net/"

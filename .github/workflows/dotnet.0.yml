@@ -1,0 +1,38 @@
+name: 0.Todo Build (GitHub Actions intro)
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**/**.md'
+      - './img/**'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+env:
+  PATH_TO_SCRIPT: './src/todo.infra/deploy.sh'
+
+jobs:
+
+  build_and_deploy:
+  
+    runs-on: ubuntu-latest
+
+    steps:
+    
+    - uses: actions/checkout@v2
+
+    - name: login to azure from cli
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Execute Build and deploy Script
+      run: |
+        chmod +x ${{ env.PATH_TO_SCRIPT }}
+        ${{ env.PATH_TO_SCRIPT }}
+
+    - name: logout
+      run: |
+        az logout
