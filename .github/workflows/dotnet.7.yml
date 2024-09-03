@@ -125,7 +125,7 @@ jobs:
 
     steps:
     
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4.1.7
       with:
         name: package.repo
         path: ./release
@@ -156,7 +156,7 @@ jobs:
 
     steps:
     
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4.1.7
       with:
         name: package.ui
         path: ./release/
@@ -228,7 +228,7 @@ jobs:
 
     steps:
     
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4.1.7
       with:
         name: package.repo
         path: ./release
@@ -259,7 +259,7 @@ jobs:
 
     steps:
     
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4.1.7
       with:
         name: package.ui
         path: ./release/
@@ -330,7 +330,7 @@ jobs:
 
     steps:
     
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4.1.7
       with:
         name: package.repo
         path: ./release
@@ -361,7 +361,7 @@ jobs:
 
     steps:
     
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4.1.7
       with:
         name: package.ui
         path: ./release/
@@ -468,7 +468,7 @@ jobs:
           echo release_url=`cat ./datashare_version/release_url.txt` >> $GITHUB_ENV
           echo release_id=`cat ./datashare_version/release_id.txt` >> $GITHUB_ENV
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v4.1.7
       with:
         path: ./release/
     
